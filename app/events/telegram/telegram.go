@@ -1,14 +1,14 @@
 package telegram
 
 import (
-	"tBot/app/clients/telegram"
 	"tBot/app/events"
 	"tBot/internal/storage"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 )
 
-const BatchSize = 100
+const BatchSize = 2
 
 type Meta struct {
 	ChatID   int
@@ -16,32 +16,34 @@ type Meta struct {
 }
 
 type Processor struct {
-	tg      *telegram.Client
+	tg      *tgbotapi.BotAPI
 	offset  int
 	storage storage.Storage
 }
 
-func NewProcessor(tg *telegram.Client, storage storage.Storage) *Processor {
+func NewProcessor(tg *tgbotapi.BotAPI, storage storage.Storage) *Processor {
 	return &Processor{
 		tg:      tg,
 		offset:  0,
 		storage: storage,
 	}
 }
-func (p *Processor) Fetch(limit int) ([]events.Event, error) {
-	updates, err := p.tg.Updates(p.offset, limit)
-	if err != nil {
-		return nil, err
-	}
-	if len(updates) == 0 {
-		return nil, nil
-	}
-	evnt := make([]events.Event, 0, len(updates))
-	for _, update := range updates {
-		evnt = append(evnt, event(update))
-	}
-	p.offset = updates[len(updates)-1].ID + 1
-	return evnt, nil
+func (p *Processor) Fetch(limit int) (events.ChEvent, error) {
+
+	u := tgbotapi.NewUpdate(p.offset)
+	u.Timeout = 60
+	u.Limit = limit
+
+	updates := p.tg.GetUpdatesChan(u)
+	ch := make(chan events.Event, 10)
+	go func() {
+		defer close(ch)
+		for update := range updates {
+			ch <- event(update)
+			p.offset = update.UpdateID + 1
+		}
+	}()
+	return ch, nil
 }
 func (p *Processor) Process(e events.Event) error {
 	switch e.Type {
@@ -57,7 +59,7 @@ func (p *Processor) processMessage(e events.Event) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get meta")
 	}
-	if err := p.doCmd(e.Text, m.ChatID, m.Username); err != nil {
+	if err = p.doCmd(e.Text, m.ChatID, m.Username); err != nil {
 		return errors.Wrap(err, "failed to do command")
 	}
 
@@ -72,7 +74,7 @@ func meta(e events.Event) (Meta, error) {
 	return res, nil
 }
 
-func event(update telegram.Update) events.Event {
+func event(update tgbotapi.Update) events.Event {
 	uType := fetchType(update)
 	ev := events.Event{
 		Type: uType,
@@ -80,7 +82,7 @@ func event(update telegram.Update) events.Event {
 	}
 	if uType == events.Message {
 		ev.Meta = Meta{
-			ChatID:   update.Message.Chat.ID,
+			ChatID:   int(update.Message.Chat.ID),
 			Username: update.Message.From.UserName,
 		}
 	}
@@ -88,14 +90,14 @@ func event(update telegram.Update) events.Event {
 	return ev
 }
 
-func fetchText(update telegram.Update) string {
+func fetchText(update tgbotapi.Update) string {
 	if update.Message == nil {
 		return ""
 	}
 	return update.Message.Text
 }
 
-func fetchType(update telegram.Update) events.Type {
+func fetchType(update tgbotapi.Update) events.Type {
 	if update.Message == nil {
 		return events.Unknown
 	}

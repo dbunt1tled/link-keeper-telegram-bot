@@ -4,10 +4,10 @@ import (
 	"log"
 	"net/url"
 	"strings"
-	"tBot/app/clients/telegram"
 	"tBot/internal/storage"
 	"time"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 )
 
@@ -31,16 +31,16 @@ func (p *Processor) doCmd(text string, chatID int, username string) error {
 	case cmdRnd:
 		return p.sendRnd(chatID, username)
 	default:
-		return p.tg.SendMessage(chatID, MsgUnknown)
+		return newSendMessage(chatID, p.tg)(MsgUnknown)
 	}
 }
 
 func (p *Processor) sendHelp(chatID int) error {
-	return p.tg.SendMessage(chatID, MsgHelp)
+	return newSendMessage(chatID, p.tg)(MsgHelp)
 }
 
 func (p *Processor) sendStart(chatID int) error {
-	return p.tg.SendMessage(chatID, MsgStart)
+	return newSendMessage(chatID, p.tg)(MsgStart)
 }
 
 func (p *Processor) sendRnd(chatID int, username string) error {
@@ -52,7 +52,7 @@ func (p *Processor) sendRnd(chatID int, username string) error {
 		}
 		return errors.Wrap(err, "failed to pick random page")
 	}
-	if err := send(page.URL); err != nil {
+	if err = send(page.URL); err != nil {
 		return errors.Wrap(err, "failed to send page")
 	}
 
@@ -73,7 +73,7 @@ func (p *Processor) savePage(chatID int, pageURL string, username string) error 
 	if isExist {
 		return send(msgAlreadySavedPage)
 	}
-	if err := p.storage.Save(page); err != nil {
+	if err = p.storage.Save(page); err != nil {
 		return err
 	}
 
@@ -89,8 +89,9 @@ func isURL(text string) bool {
 	return err == nil && u.Host != ""
 }
 
-func newSendMessage(chatID int, tg *telegram.Client) func(string) error {
+func newSendMessage(chatID int, tg *tgbotapi.BotAPI) func(string) error {
 	return func(msg string) error {
-		return tg.SendMessage(chatID, msg)
+		_, err := tg.Send(tgbotapi.NewMessage(int64(chatID), msg))
+		return err
 	}
 }

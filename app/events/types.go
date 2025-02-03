@@ -1,7 +1,7 @@
 package events
 
 type Fetcher interface {
-	Fetch(limit int) ([]Event, error)
+	Fetch(limit int) (ChEvent, error)
 }
 
 type Processor interface {
@@ -20,3 +20,5 @@ type Event struct {
 	Text string
 	Meta interface{}
 }
+
+type ChEvent <-chan Event

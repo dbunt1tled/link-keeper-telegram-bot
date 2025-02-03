@@ -5,8 +5,14 @@ import (
 )
 
 type Config struct {
+	App      App      `yaml:"app"`
 	Telegram Telegram `yaml:"telegram"`
 	Storage  Storage  `yaml:"storage"`
+}
+
+type App struct {
+	Name  string `yaml:"name" env:"APP_NAME" env-default:"tBot"`
+	Debug bool   `yaml:"debug" env:"APP_DEBUG" env-default:"false"`
 }
 type Telegram struct {
 	Host  string `yaml:"host" env:"TELEGRAM_HOST" env-default:"api.telegram.org"`

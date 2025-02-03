@@ -3,7 +3,10 @@ package event_consumer
 import (
 	"log"
 	"tBot/app/events"
-	"time"
+)
+
+const (
+	workerCount = 10
 )
 
 type Consumer struct {
@@ -20,30 +23,27 @@ func New(fetcher events.Fetcher, processor events.Processor, batchSize int) *Con
 	}
 }
 func (c *Consumer) Start() error {
-	for {
-		ev, err := c.fetcher.Fetch(c.batchSize)
-		if err != nil {
-			log.Printf("[ERROR] Failed to fetch events: %v", err)
-			continue
-		}
-		if len(ev) == 0 {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		err = c.handleEvents(ev)
+	ev, err := c.fetcher.Fetch(c.batchSize)
+	if err != nil {
+		log.Printf("[ERROR] Failed to fetch events: %v", err)
+		return err
+	}
+
+	for i := 0; i < workerCount; i++ {
+		c.worker(ev)
+	}
+	return nil
+}
+
+func (c *Consumer) handleEvents(e events.Event) error {
+	return c.processor.Process(e)
+}
+
+func (c *Consumer) worker(ev events.ChEvent) {
+	for e := range ev {
+		err := c.handleEvents(e)
 		if err != nil {
 			log.Printf("[ERROR] Failed to handle events: %v", err)
 		}
 	}
-}
-
-func (c *Consumer) handleEvents(ev []events.Event) error {
-	for _, e := range ev {
-		log.Printf("[INFO] new event: %v", e)
-		if err := c.processor.Process(e); err != nil {
-			log.Printf("[ERROR] Failed handle event: %v", err)
-			continue
-		}
-	}
-	return nil
 }
