@@ -2,11 +2,8 @@ package event_consumer
 
 import (
 	"log"
+	"runtime"
 	"tBot/app/events"
-)
-
-const (
-	workerCount = 10
 )
 
 type Consumer struct {
@@ -28,8 +25,8 @@ func (c *Consumer) Start() error {
 		log.Printf("[ERROR] Failed to fetch events: %v", err)
 		return err
 	}
-
-	for i := 0; i < workerCount; i++ {
+	workerCount := runtime.NumCPU()
+	for range workerCount {
 		c.worker(ev)
 	}
 	return nil

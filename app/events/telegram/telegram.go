@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const BatchSize = 2
+const BatchSize = 100
 
 type Meta struct {
 	ChatID   int
@@ -35,7 +35,7 @@ func (p *Processor) Fetch(limit int) (events.ChEvent, error) {
 	u.Limit = limit
 
 	updates := p.tg.GetUpdatesChan(u)
-	ch := make(chan events.Event, 10)
+	ch := make(chan events.Event, p.tg.Buffer)
 	go func() {
 		defer close(ch)
 		for update := range updates {
@@ -49,6 +49,8 @@ func (p *Processor) Process(e events.Event) error {
 	switch e.Type {
 	case events.Message:
 		return p.processMessage(e)
+	case events.Unknown:
+		return errors.New("unknown event type")
 	default:
 		return errors.New("unsupported event type")
 	}

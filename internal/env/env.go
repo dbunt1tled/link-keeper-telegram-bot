@@ -20,7 +20,7 @@ type Telegram struct {
 }
 
 type Storage struct {
-	BasePath string `yaml:"base_path" env:"STORAGE_BASE_PATH" env-default:"data"`
+	DB string `yaml:"db" env:"STORAGE_DB" env-default:"./data/bot.db"`
 }
 
 func MustLoadConfig() *Config {
